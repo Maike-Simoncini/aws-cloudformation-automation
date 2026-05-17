@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Infraestrutura automatizada: S3 Trigger -> Lambda Function -> DynamoDB Table'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, prod]
+    Description: Ambiente de implantação do projeto.
+
+Resources:
+  # 1. Tabela do Amazon DynamoDB para persistência de logs
+  RegistroProcessamentoTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'RegistroProcessamento-${Environment}'
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  # 2. Permissões de Execução da Lambda (IAM Role)
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'LambdaS3AutomationRole-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [lambda.amazonaws.com]
+            Action: ['sts:AssumeRole']
+      Policies:
+        - PolicyName: LambdaAutomationPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 'arn:aws:logs:*:*:*'
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:HeadObject'
+                Resource: 'arn:aws:s3:::bucket-automacao-dio-*/*'
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:PutItem'
+                Resource: !GetAtt RegistroProcessamentoTable.Arn
+
+  # 3. AWS Lambda Function contendo a lógica em Python
+  AutomationLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'S3Processor-${Environment}'
+      Runtime: python3.11
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          # O script completo contido em src/lambda_function.py será empacotado aqui
+          pass 
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref RegistroProcessamentoTable
+
+  # 4. Permissão para o S3 invocar a Lambda
+  LambdaPermissionForS3:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref AutomationLambdaFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub 'arn:aws:s3:::bucket-automacao-dio-${Environment}'
+
+  # 5. Bucket Amazon S3 com a configuração do Gatilho (Event Notification)
+  AutomacaoS3Bucket:
+    Type: AWS::S3::Bucket
+    DependsOn: LambdaPermissionForS3
+    Properties:
+      BucketName: !Sub 'bucket-automacao-dio-${Environment}'
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: 's3:ObjectCreated:*'
+            Function: !GetAtt AutomationLambdaFunction.Arn
