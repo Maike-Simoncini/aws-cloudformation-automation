@@ -1,0 +1,7 @@
+# SDK oficial da AWS para Python (essencial para comunicação com S3 e DynamoDB)
+# Nota: Já disponível nativamente no ambiente AWS Lambda Run-time, 
+# mas necessário para desenvolvimento, testes locais e simulação via LocalStack.
+boto3==1.34.0
+
+# Biblioteca utilitária para tratamento e requisições HTTP (caso expanda a lógica futuramente)
+urllib3==2.2.0
