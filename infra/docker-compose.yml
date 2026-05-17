@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  localstack:
+    container_name: localstack_main
+    image: localstack/localstack:latest
+    ports:
+      - "127.0.0.1:4566:4566"            # Porta do Edge Service unificado da AWS
+      - "127.0.0.1:4510-4559:4510-4559"  # Portas de serviços específicos de suporte
+    environment:
+      - SERVICES=s3,lambda,dynamodb,iam  # Habilita apenas os serviços necessários
+      - DEBUG=1
+      - AWS_DEFAULT_REGION=us-east-1
+      - DATA_DIR=/tmp/localstack/data
+    volumes:
+      - "./.localstack:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
